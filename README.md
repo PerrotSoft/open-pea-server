@@ -1,18 +1,13 @@
-# Open Pea Server — Креатив-сервер (Vercel + Постоянный оркестратор)
+# Open Pea Server — Креатив-сервер
 
-## Исправление 404 на Vercel
-В этом архиве файлы для Vercel (`vercel.json`, `go.mod`, `api/`, `public/`) находятся **строго в корне архива**.
-Просто распакуйте архив и загрузите его содержимое в репозиторий `PerrotSoft/open-pea-server` (в корень ветки `main` / `главный`), после чего Vercel автоматически пересоберёт проект и откроет страницу без ошибки 404.
+## Що виправлено для Vercel CLI 65+
+Vercel визначив проєкт як Go Backend Framework, який обов'язково вимагає точку входу `main.go` у корені проєкту (`Error: [BUILD_FAILED] No Go entrypoint found. Expected one of: main.go, cmd/api/main.go, cmd/server/main.go`).
 
-## Переменные окружения в Vercel (Settings -> Environment Variables)
-- `ORCHESTRATOR_URL` — адрес вашего постоянного сервера (например, `http://185.x.x.x:8080`)
-- `API_SECRET` — секретный токен для авторизации запросов (должен совпадать с токеном оркестратора)
+У цьому архіві:
+- У корені розташований `main.go` та `go.mod`.
+- Статична сторінка `public/index.html` вбудована прямо в Go-бінарник через `//go:embed public/*`, що повністю вирішує і помилку збірки, і помилку `404 NOT_FOUND` на головній сторінці.
+- `vercel.json` видалено, щоб уникнути конфліктів маршрутизації в Vercel CLI 65.15.0.
 
-## Запуск постоянного оркестратора (`backend-vps/`)
-На вашем VPS / выделенном сервере:
-```bash
-cd backend-vps/game-server && go build -o game-server .
-cd ../orchestrator && go build -o orchestrator .
-PUBLIC_HOST="ВАШ_БЕЛЫЙ_IP" API_SECRET="ваш-секретный-ключ" ./orchestrator
-```
-Креатив-сервер автоматически выключится, если на нём никого не будет более 30 минут.
+## Змінні середовища в Vercel (Settings -> Environment Variables)
+- `ORCHESTRATOR_URL` — адреса вашого постійного сервера (наприклад, `http://185.x.x.x:8080`)
+- `API_SECRET` — секретний токен (має збігатися з токеном оркестратора)

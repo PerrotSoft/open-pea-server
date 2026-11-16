@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,8 +19,8 @@
 <body>
     <div class="card">
         <h2>Креатив-сервер</h2>
-        <p>Сервер запускается по требованию и автоматически выключается через 30 минут без игроков.</p>
-        <button id="createBtn">Запустить сервер</button>
+        <p>Сервер запускається на вимогу та автоматично вимикається через 30 хвилин без гравців.</p>
+        <button id="createBtn">Запустити сервер</button>
         <div id="result"></div>
     </div>
 
@@ -30,7 +30,7 @@
 
         btn.addEventListener('click', async () => {
             btn.disabled = true;
-            resultDiv.innerHTML = "Запуск инстанса креатив-сервера...";
+            resultDiv.innerHTML = "Запуск інстансу креатив-сервера...";
 
             try {
                 const response = await fetch('/api/create-server', {
@@ -41,14 +41,14 @@
 
                 const data = await response.json();
                 if (!response.ok) {
-                    throw new Error(data.error || ('Ошибка сервера: ' + response.status));
+                    throw new Error(data.error || ('Помилка сервера: ' + response.status));
                 }
 
                 resultDiv.innerHTML = `
-                    <p style="color: #3fb950; font-weight: bold;">Сервер активен!</p>
+                    <p style="color: #3fb950; font-weight: bold;">Сервер активний!</p>
                     <div><strong>ID:</strong> ${data.id}</div>
                     <div><strong>Хост:</strong> ${data.host}</div>
-                    <div><strong>IP для подключения:</strong> <code>${data.ip}</code></div>
+                    <div><strong>IP для підключення:</strong> <code>${data.ip}</code></div>
                 `;
             } catch (error) {
                 resultDiv.innerHTML = `<p style="color: #f85149;">${error.message}</p>`;
