@@ -1,10 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "api/create-server.go", "use": "@vercel/go" }
-  ],
-  "routes": [
-    { "src": "/api/create-server", "dest": "/api/create-server.go" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+  "rewrites": [
+    { "source": "/api/create-server", "destination": "/api/create-server.go" }
   ]
 }
