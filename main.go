@@ -87,17 +87,16 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		domain = "open-pea-server.vercel.app"
 	}
 
-	// Визначаємо IP-адресу домену за допомогою DNS-резолвера
-	resolvedIP := domain
-	// Відкидаємо порт, якщо він є в r.Host
-	hostOnly, _, err := net.SplitHostPort(domain)
+	hostOnly := domain
+	h, _, err := net.SplitHostPort(domain)
 	if err == nil {
-		domain = hostOnly
+		hostOnly = h
 	}
 
-	ips, err := net.LookupIP(domain)
+	// Визначаємо IP-адресу домену за допомогою DNS-резолвера
+	resolvedIP := hostOnly
+	ips, err := net.LookupIP(hostOnly)
 	if err == nil && len(ips) > 0 {
-		// Шукаємо IPv4 для зручності підключення
 		for _, ip := range ips {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				resolvedIP = ipv4.String()
@@ -124,14 +123,13 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Використовуємо порт 27015 за замовчуванням
 	gamePort := 27015
 	id := fmt.Sprintf("creative-%d", gamePort)
 	now := time.Now()
 
 	srv := &CreativeServer{
 		ID:           id,
-		Host:         fmt.Sprintf("%s:%d", domain, gamePort),
+		Host:         fmt.Sprintf("%s:%d", hostOnly, gamePort),
 		IP:           fmt.Sprintf("%s:%d", resolvedIP, gamePort),
 		Status:       "running",
 		Players:      0,
