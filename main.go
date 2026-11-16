@@ -45,7 +45,6 @@ func main() {
 	clients := make(map[string]*ClientInfo)
 	var mu sync.Mutex
 
-	// Горутина отслеживания неактивности (30 минут без игроков)
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
@@ -53,7 +52,6 @@ func main() {
 		for range ticker.C {
 			now := time.Now()
 			mu.Lock()
-			// Удаляем игроков, от которых не было пакетов более 60 секунд
 			for key, client := range clients {
 				if now.Sub(client.LastSeen) > 60*time.Second {
 					log.Printf("[%s] Player disconnected (timeout): %s", *serverID, key)
@@ -78,7 +76,6 @@ func main() {
 		}
 	}()
 
-	// Основной сетевой цикл игрового сервера
 	buf := make([]byte, 2048)
 	for {
 		n, remoteAddr, err := conn.ReadFromUDP(buf)
@@ -100,7 +97,6 @@ func main() {
 		}
 		mu.Unlock()
 
-		// Эхо/обработка игрового пакета (замените на логику вашего движка)
 		msg := string(buf[:n])
 		reply := fmt.Sprintf("ACK [%s]: %s", *serverID, msg)
 		_, _ = conn.WriteToUDP([]byte(reply), remoteAddr)

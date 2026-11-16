@@ -5,11 +5,11 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/creative-server-manager/orchestrator
+WorkingDirectory=/opt/backend-vps/orchestrator
 Environment="PUBLIC_HOST=YOUR_VPS_PUBLIC_IP"
-Environment="GAME_SERVER_BIN=/opt/creative-server-manager/game-server/game-server"
+Environment="GAME_SERVER_BIN=/opt/backend-vps/game-server/game-server"
 Environment="API_SECRET=super-secret-token"
-ExecStart=/opt/creative-server-manager/orchestrator/orchestrator
+ExecStart=/opt/backend-vps/orchestrator/orchestrator
 Restart=always
 RestartSec=3
 

@@ -33,7 +33,7 @@ type Orchestrator struct {
 func NewOrchestrator() *Orchestrator {
 	publicHost := os.Getenv("PUBLIC_HOST")
 	if publicHost == "" {
-		publicHost = "127.0.0.1" // Замените на реальный белый IP вашего VPS
+		publicHost = "127.0.0.1"
 	}
 	serverBinary := os.Getenv("GAME_SERVER_BIN")
 	if serverBinary == "" {
@@ -78,7 +78,6 @@ func (o *Orchestrator) handleCreateServer(w http.ResponseWriter, r *http.Request
 	}
 
 	o.mu.Lock()
-	// Если уже есть запущенный креатив-сервер, возвращаем его (или уберите этот блок, если нужно создавать новый на каждый клик)
 	for _, srv := range o.servers {
 		if srv.Status == "running" {
 			o.mu.Unlock()
@@ -120,7 +119,6 @@ func (o *Orchestrator) handleCreateServer(w http.ResponseWriter, r *http.Request
 	o.servers[id] = instance
 	o.mu.Unlock()
 
-	// Отслеживаем завершение процесса (например, после 30 минут простоя)
 	go func(inst *ServerInstance) {
 		_ = inst.cmd.Wait()
 		o.mu.Lock()
