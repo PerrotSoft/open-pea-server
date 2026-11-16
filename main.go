@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -37,12 +37,10 @@ var (
 func main() {
 	mux := http.NewServeMux()
 
-	// Эндпоинты управления серверами прямо на домене Vercel
 	mux.HandleFunc("/api/create-server", handleCreateServer)
 	mux.HandleFunc("/api/heartbeat", handleHeartbeat)
 	mux.HandleFunc("/api/servers", handleListServers)
 
-	// Встроенная статика из public/
 	subFS, err := fs.Sub(publicFS, "public")
 	if err != nil {
 		log.Fatal(err)
@@ -60,7 +58,6 @@ func main() {
 	}
 }
 
-// cleanupExpired закрывает серверы, на которых не было активности > 30 минут
 func cleanupExpired() {
 	now := time.Now()
 	for id, srv := range activeServers {
@@ -85,10 +82,28 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Определяем текущий домен Vercel из заголовка Host
 	domain := r.Host
 	if domain == "" {
 		domain = "open-pea-server.vercel.app"
+	}
+
+	// Визначаємо IP-адресу домену за допомогою DNS-резолвера
+	resolvedIP := domain
+	// Відкидаємо порт, якщо він є в r.Host
+	hostOnly, _, err := net.SplitHostPort(domain)
+	if err == nil {
+		domain = hostOnly
+	}
+
+	ips, err := net.LookupIP(domain)
+	if err == nil && len(ips) > 0 {
+		// Шукаємо IPv4 для зручності підключення
+		for _, ip := range ips {
+			if ipv4 := ip.To4(); ipv4 != nil {
+				resolvedIP = ipv4.String()
+				break
+			}
+		}
 	}
 
 	mu.Lock()
@@ -96,34 +111,33 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 
 	cleanupExpired()
 
-	// Если уже есть активный креатив-сервер — возвращаем его
 	for _, srv := range activeServers {
 		if srv.Status == "running" {
 			remaining := idleTimeout - time.Since(srv.LastActivity)
 			if remaining < 0 {
 				remaining = 0
 			}
-			srv.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+			srv.ExpiresIn = fmt.Sprintf("%d хв", int(remaining.Minutes()))
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(srv)
 			return
 		}
 	}
 
-	// Создаём новый инстанс на домене Vercel
-	port := 25565 + rand.Intn(1000)
-	id := fmt.Sprintf("creative-%d", port)
+	// Використовуємо порт 27015 за замовчуванням
+	gamePort := 27015
+	id := fmt.Sprintf("creative-%d", gamePort)
 	now := time.Now()
 
 	srv := &CreativeServer{
 		ID:           id,
-		Host:         domain,
-		IP:           fmt.Sprintf("%s:%d", domain, port),
+		Host:         fmt.Sprintf("%s:%d", domain, gamePort),
+		IP:           fmt.Sprintf("%s:%d", resolvedIP, gamePort),
 		Status:       "running",
 		Players:      0,
 		CreatedAt:    now,
 		LastActivity: now,
-		ExpiresIn:    "30 мин",
+		ExpiresIn:    "30 хв",
 	}
 	activeServers[id] = srv
 
@@ -132,7 +146,6 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(srv)
 }
 
-// handleHeartbeat обновляет таймер активности игроков (сбрасывает 30-минутный отсчёт)
 func handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -157,7 +170,7 @@ func handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Сервер закрыт из-за неактивности (30 мин)"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Сервер закрито через неактивність (30 хв)"})
 		return
 	}
 
@@ -170,7 +183,7 @@ func handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if remaining < 0 {
 		remaining = 0
 	}
-	srv.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+	srv.ExpiresIn = fmt.Sprintf("%d хв", int(remaining.Minutes()))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(srv)
@@ -188,7 +201,7 @@ func handleListServers(w http.ResponseWriter, r *http.Request) {
 		if remaining < 0 {
 			remaining = 0
 		}
-		s.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+		s.ExpiresIn = fmt.Sprintf("%d хв", int(remaining.Minutes()))
 		list = append(list, s)
 	}
 
