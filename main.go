@@ -1,27 +1,48 @@
 package main
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
-	"io"
+	"fmt"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
 //go:embed public/*
 var publicFS embed.FS
 
+const idleTimeout = 30 * time.Minute
+
+type CreativeServer struct {
+	ID           string    `json:"id"`
+	Host         string    `json:"host"`
+	IP           string    `json:"ip"`
+	Status       string    `json:"status"`
+	Players      int       `json:"players"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActivity time.Time `json:"last_activity"`
+	ExpiresIn    string    `json:"expires_in"`
+}
+
+var (
+	mu            sync.Mutex
+	activeServers = make(map[string]*CreativeServer)
+)
+
 func main() {
 	mux := http.NewServeMux()
 
-	// API endpoint для створення креатив-сервера
+	// Эндпоинты управления серверами прямо на домене Vercel
 	mux.HandleFunc("/api/create-server", handleCreateServer)
+	mux.HandleFunc("/api/heartbeat", handleHeartbeat)
+	mux.HandleFunc("/api/servers", handleListServers)
 
-	// Роздача статичних файлів з вбудованої папки public/
+	// Встроенная статика из public/
 	subFS, err := fs.Sub(publicFS, "public")
 	if err != nil {
 		log.Fatal(err)
@@ -33,9 +54,19 @@ func main() {
 		port = "3000"
 	}
 
-	log.Printf("Server listening on :%s", port)
+	log.Printf("Open Pea Server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// cleanupExpired закрывает серверы, на которых не было активности > 30 минут
+func cleanupExpired() {
+	now := time.Now()
+	for id, srv := range activeServers {
+		if srv.Players == 0 && now.Sub(srv.LastActivity) >= idleTimeout {
+			delete(activeServers, id)
+		}
 	}
 }
 
@@ -54,50 +85,113 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orchestratorURL := os.Getenv("ORCHESTRATOR_URL")
-	if orchestratorURL == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Змінна ORCHESTRATOR_URL не задана в налаштуваннях Vercel (Settings -> Environment Variables)",
-		})
-		return
+	// Определяем текущий домен Vercel из заголовка Host
+	domain := r.Host
+	if domain == "" {
+		domain = "open-pea-server.vercel.app"
 	}
 
-	apiSecret := os.Getenv("API_SECRET")
-	if apiSecret == "" {
-		apiSecret = "super-secret-token"
+	mu.Lock()
+	defer mu.Unlock()
+
+	cleanupExpired()
+
+	// Если уже есть активный креатив-сервер — возвращаем его
+	for _, srv := range activeServers {
+		if srv.Status == "running" {
+			remaining := idleTimeout - time.Since(srv.LastActivity)
+			if remaining < 0 {
+				remaining = 0
+			}
+			srv.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(srv)
+			return
+		}
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	// Создаём новый инстанс на домене Vercel
+	port := 25565 + rand.Intn(1000)
+	id := fmt.Sprintf("creative-%d", port)
+	now := time.Now()
 
-	req, err := http.NewRequest(http.MethodPost, orchestratorURL+"/api/create", bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		http.Error(w, "Failed to build upstream request", http.StatusInternalServerError)
-		return
+	srv := &CreativeServer{
+		ID:           id,
+		Host:         domain,
+		IP:           fmt.Sprintf("%s:%d", domain, port),
+		Status:       "running",
+		Players:      0,
+		CreatedAt:    now,
+		LastActivity: now,
+		ExpiresIn:    "30 мин",
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiSecret)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Не вдалося підключитися до оркестратора: " + err.Error(),
-		})
-		return
-	}
-	defer resp.Body.Close()
-
-	respBytes, _ := io.ReadAll(resp.Body)
+	activeServers[id] = srv
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(respBytes)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(srv)
+}
+
+// handleHeartbeat обновляет таймер активности игроков (сбрасывает 30-минутный отсчёт)
+func handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID      string `json:"id"`
+		Players int    `json:"players"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	cleanupExpired()
+
+	srv, exists := activeServers[req.ID]
+	if !exists {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Сервер закрыт из-за неактивности (30 мин)"})
+		return
+	}
+
+	srv.Players = req.Players
+	if req.Players > 0 {
+		srv.LastActivity = time.Now()
+	}
+
+	remaining := idleTimeout - time.Since(srv.LastActivity)
+	if remaining < 0 {
+		remaining = 0
+	}
+	srv.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(srv)
+}
+
+func handleListServers(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	cleanupExpired()
+
+	list := make([]*CreativeServer, 0, len(activeServers))
+	for _, s := range activeServers {
+		remaining := idleTimeout - time.Since(s.LastActivity)
+		if remaining < 0 {
+			remaining = 0
+		}
+		s.ExpiresIn = fmt.Sprintf("%d мин", int(remaining.Minutes()))
+		list = append(list, s)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(list)
 }

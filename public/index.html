@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,15 +12,15 @@
         button { padding: 12px 26px; font-size: 16px; cursor: pointer; background: #2ea043; color: white; border: none; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
         button:hover { background: #3fb950; }
         button:disabled { background: #3b4048; color: #8b949e; cursor: not-allowed; }
-        #result { margin-top: 24px; font-size: 15px; line-height: 1.6; }
+        #result { margin-top: 24px; font-size: 15px; line-height: 1.7; }
         code { background: #252a33; padding: 4px 8px; border-radius: 4px; font-size: 15px; color: #58a6ff; border: 1px solid #30363d; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Креатив-сервер</h2>
-        <p>Сервер запускається на вимогу та автоматично вимикається через 30 хвилин без гравців.</p>
-        <button id="createBtn">Запустити сервер</button>
+        <p>Работает на домене Vercel. Автоматически закрывается, если на сервере никого нет более 30 минут.</p>
+        <button id="createBtn">Запустить сервер</button>
         <div id="result"></div>
     </div>
 
@@ -30,7 +30,7 @@
 
         btn.addEventListener('click', async () => {
             btn.disabled = true;
-            resultDiv.innerHTML = "Запуск інстансу креатив-сервера...";
+            resultDiv.innerHTML = "Запуск креатив-сервера...";
 
             try {
                 const response = await fetch('/api/create-server', {
@@ -41,14 +41,15 @@
 
                 const data = await response.json();
                 if (!response.ok) {
-                    throw new Error(data.error || ('Помилка сервера: ' + response.status));
+                    throw new Error(data.error || ('Ошибка сервера: ' + response.status));
                 }
 
                 resultDiv.innerHTML = `
-                    <p style="color: #3fb950; font-weight: bold;">Сервер активний!</p>
+                    <p style="color: #3fb950; font-weight: bold; margin-bottom: 8px;">Сервер активен!</p>
                     <div><strong>ID:</strong> ${data.id}</div>
-                    <div><strong>Хост:</strong> ${data.host}</div>
-                    <div><strong>IP для підключення:</strong> <code>${data.ip}</code></div>
+                    <div><strong>Домен (Host):</strong> <code>${data.host}</code></div>
+                    <div><strong>Адрес (IP:Port):</strong> <code>${data.ip}</code></div>
+                    <div style="color: #8b949e; font-size: 13px; margin-top: 8px;">Автозакрытие без игроков через: ${data.expires_in}</div>
                 `;
             } catch (error) {
                 resultDiv.innerHTML = `<p style="color: #f85149;">${error.message}</p>`;
