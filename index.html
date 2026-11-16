@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Запуск креатив-сервера</title>
+    <style>
+        body { font-family: system-ui, sans-serif; text-align: center; margin-top: 60px; background: #121212; color: #f1f1f1; }
+        .card { max-width: 440px; margin: 0 auto; padding: 28px; background: #1e1e1e; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 6px; font-weight: 600; }
+        button:hover { background: #43a047; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #result { margin-top: 24px; font-size: 16px; line-height: 1.6; }
+        code { background: #2c2c2c; padding: 4px 8px; border-radius: 4px; font-size: 15px; color: #81c784; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Креатив-сервер</h2>
+        <p>Сервер запускается по требованию и автоматически выключается через 30 минут без игроков.</p>
+        <button id="createBtn">Запустить сервер</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const btn = document.getElementById('createBtn');
+        const resultDiv = document.getElementById('result');
+
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            resultDiv.innerHTML = "Запуск инстанса креатив-сервера...";
+
+            try {
+                const response = await fetch('/api/create-server', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ max_players: 16, game_type: 'creative' })
+                });
+
+                if (!response.ok) throw new Error('Ошибка ответа сервера: ' + response.status);
+
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <p style="color: #81c784; font-weight: bold;">Сервер активен!</p>
+                    <div><strong>ID:</strong> ${data.id}</div>
+                    <div><strong>Хост:</strong> ${data.host}</div>
+                    <div><strong>IP для подключения:</strong> <code>${data.ip}</code></div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #ef5350;">Не удалось запустить сервер. Проверьте доступность оркестратора.</p>`;
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Always-On Creative Game Server Orchestrator
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/creative-server-manager/orchestrator
+Environment="PUBLIC_HOST=YOUR_VPS_PUBLIC_IP"
+Environment="GAME_SERVER_BIN=/opt/creative-server-manager/game-server/game-server"
+Environment="API_SECRET=super-secret-token"
+ExecStart=/opt/creative-server-manager/orchestrator/orchestrator
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
